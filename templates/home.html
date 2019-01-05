@@ -1,0 +1,41 @@
+<!doctype html>
+<title>Halocene Donation Widget</title>
+<link href="https://fonts.googleapis.com/css?family=Oswald" rel="stylesheet"></link>
+<link href="/static/donations.css" rel="stylesheet">
+<style>
+body {
+	color: #fff;
+	background-color: #000;
+    font-family: Oswald;
+}
+
+a {
+    font-size: 2em;
+}
+
+.urls {
+    width: 30em;
+}
+
+.url_info {
+    text-align: center;
+    padding: .5em;
+    margin: 12px;
+    background-color: #222;
+}
+
+</style>
+<div class="flex-container">
+    <h3>Hello</h3>
+    <p>This isn't really the page you're looking for.</p>
+    <div class="urls">
+        <div class="url_info">
+            <p>The url to paste into OBS for the overlay is:</p>
+            <p><a href="/donations">{{ url_for("donations", _external=True) }}</a></p>
+        </div>
+        <div class="url_info">
+            <p>The url to hit the settings/admin page is:</p>
+            <p><a href="/settings">{{url_for("settings", _external=True) }}</a></p>
+        </div>
+    </div>
+</div>

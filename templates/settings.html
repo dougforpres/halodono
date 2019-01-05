@@ -1,0 +1,400 @@
+<!doctype html>
+<title>Settings</title>
+<link href="https://fonts.googleapis.com/css?family=Oswald" rel="stylesheet"></link>
+<link href="/static/donations.css" rel="stylesheet">
+<script src="/static/renderDonations.js"></script>
+
+<style>
+body {
+    color: #fff;
+    background-color: #000;
+    font-family: Oswald;
+}
+
+.edit {
+}
+
+.donations-only {
+}
+
+.settings {
+    width: 30em;
+}
+
+.setting {
+    margin-bottom: 12px;
+    background-color: #222;
+}
+
+.setting-item {
+    margin-bottom: 8px;
+    border-style: none none none solid;
+    border-color: #484;
+    border-width: 4px;
+}
+
+.setting-item label {
+    padding-left: 8px;
+}
+
+.sub {
+    margin-top: 8px;
+    margin-left: 24px;
+//    border-color: #888;
+}
+
+.danger {
+    border-color: #a44;
+}
+
+.extend {
+}
+
+.settingValue {
+    float: right;
+}
+
+.disabled-content {
+    pointer-events: none;
+    opacity: 0.4;
+}
+</style>
+
+<script>
+    function onModeChange() {
+        syncUpdate('/api/settings', { 'mode': document.getElementById('settingsSelectMode').value });
+    }
+
+    function onCustomMessageChange() {
+        syncUpdate('/api/settings', { 'customMessage': document.getElementById('settingsCustomMessage').value });
+    }
+
+    function onProgressChange() {
+        syncUpdate('/api/settings', { 'showProgress': document.getElementById('settingsShowProgress').checked })
+    }
+
+    function onGoalAlertsChange() {
+        syncUpdate('/api/settings', { 'showGoalAlerts': document.getElementById('settingsShowGoalAlerts').checked })
+    }
+
+    function onGoalMessageChange() {
+        syncUpdate('/api/settings', { 'goalMessage': document.getElementById('settingsGoalMessage').value })
+    }
+
+    function onSetTime() {
+        syncUpdate('/api/goal', { 'goalHours': parseFloat(document.getElementById('settingsExtendStream').value) })
+    }
+
+    function onSetAmount() {
+        var amount = document.getElementById('settingsAmountSelect').value;
+
+        if (amount == 'custom') {
+            amount = document.getElementById('settingsAmount').value;
+        }
+
+        if (/^\d+$/.test(amount)) {
+            syncUpdate('/api/goal', { 'amount': parseInt(amount) });
+        } else {
+            alert("Value for 'amount' must be a dollar value (no cents)");
+        }
+    }
+
+    function onResetStream() {
+        // This can be dangerous, so lets add a confirmation dialog
+        if (confirm("This will reset the donation settings to those you'd see at the beginning of a stream.\n\nAre you ok with that?")) {
+            syncUpdate('/api/goal/reset', { });
+        }
+    }
+
+    function onQuickExtendStream() {
+        syncUpdate('/api/goal', {
+            'goalHours': parseFloat(document.getElementById('settingsQuickExtendHours').innerText),
+            'amount': parseInt(document.getElementById('settingsQuickExtendAmount').innerText)
+        })
+    }
+
+    function disableClass(cls) {
+        var elems = document.getElementsByClassName(cls);
+        
+        for (var i = 0; i < elems.length; i++) {
+            elems[i].classList.add('disabled-content');
+        }
+    }
+
+    function enableClass(cls) {
+        var elems = document.getElementsByClassName(cls);
+        
+        for (var i = 0; i < elems.length; i++) {
+            elems[i].classList.remove('disabled-content');
+        }
+    }
+
+    function syncUpdate(path, updates) {
+        // Push to api
+        // Lock other changes
+        disableClass('edit');
+
+        fetch(path, {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            method: 'PUT',
+            body: JSON.stringify(updates)
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw Error(response.statusText);
+                }
+
+                return response;
+            }).then(response => response.json())
+                   .then(settings => {
+                refreshSettings();
+                enableClass('edit');
+            }).catch(function(error) {
+                console.log(error);
+                alert("Had a problem changing mode - please refresh!\n\n" + error);
+                enableClass('edit');
+            });
+    }
+
+    function refreshSettings() {
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(status => {
+                displaySettings(status);
+            });
+    }
+
+    function showDonations() {
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(status => {
+                updateDonationsDisplay(status);
+            });
+    }
+
+    function displaySettings(status) {
+        var settings = status.settings;
+
+        document.getElementById('settingsSelectMode').value = settings.mode;
+        document.getElementById('settingsCustomMessage').value = settings.customMessage;
+        document.getElementById('settingsShowProgress').checked = settings.showProgress;
+        document.getElementById('settingsShowGoalAlerts').checked = settings.showGoalAlerts;
+        document.getElementById('settingsIncrementBy').innerText = settings.incrementHoursBy;
+        document.getElementById('settingsDefaultHours').innerText = settings.defaultStatus.goalHours;
+        document.getElementById('settingsDefaultAmount').innerText = settings.defaultStatus.amount;
+        document.getElementById('settingsGoalMessage').value = settings.goalMessage;
+
+        // Calculate next goals
+        // - Populate list with goal values, select one that is NEXT after current
+        var extendStreamSelect = document.getElementById('settingsExtendStream');
+        var i;
+
+        for(i = extendStreamSelect.options.length - 1 ; i >= 0 ; i--) {
+            extendStreamSelect.remove(i);
+        }
+
+        var hours = status.settings.defaultStatus.goalHours;
+        var selected = false;
+
+        while (hours < (status.goal.goalHours + 4)) {
+            var option = document.createElement('option');
+
+            option.text = hours;
+            option.value = hours;
+
+            if (!selected && hours > status.goal.goalHours) {
+                option.selected = true;
+                selected = true;
+            }
+
+            extendStreamSelect.add(option);
+
+            if (hours != 2) {
+                hours += settings.incrementHoursBy;
+            } else {
+                hours += settings.incrementHoursBy * 2;
+            }
+        }
+
+        var amountSelect = document.getElementById('settingsAmountSelect');
+
+        for (i = amountSelect.options.length - 1 ; i >= 0 ; i--) {
+            amountSelect.remove(i);
+        }
+
+        var amounts = status.settings.amounts;
+        var found = false;
+        selected = false;
+
+        for (i = 0; i < amounts.length; i++) {
+            var option = document.createElement('option');
+
+            option.text = amounts[i];
+            option.value = amounts[i];
+
+            if (amounts[i] == status.goal.amount) {
+                found = true;
+            }
+
+            if (found && !selected && amounts[i] > status.goal.amount) {
+                option.selected = true;
+                selected = true;
+            }
+
+            amountSelect.add(option);
+        }
+
+        var option = document.createElement('option');
+
+        option.text = "Custom";
+        option.value = "custom";
+
+        if (!selected) {
+            option.selected = true;
+        }
+
+        amountSelect.add(option);
+
+        if (selected) {
+            document.getElementById('settingsQuickExtendHours').innerText = document.getElementById('settingsExtendStream').value;
+            document.getElementById('settingsQuickExtendAmount').innerText = document.getElementById('settingsAmountSelect').value;
+            enableClass('extend');
+        } else {
+            disableClass('extend');
+        }
+
+        onSettingsAmountSelectChange();
+    }
+
+    function onSettingsAmountSelectChange() {
+        var visible = (document.getElementById('settingsAmountSelect').value == "custom") ? "block" : "none";
+
+        document.getElementById('settingsAmountContainer').style.display = visible;
+    }
+
+    // Fetch and display settings
+    refreshSettings();
+
+    setInterval(showDonations, 2500);
+</script>
+
+<div class="flex-container">
+    <div id="donations-container">
+        <div id="donationDiv" style="display: none">
+            STAY ON FOR <span id="hours">??</span> HOURS: $<span id="donations">??</span> / $<span id="goal">??</span>
+            <div align="left" id="donationProgress"><div id="donationProgressBar"></div></div>
+        </div>
+
+        <div id="closedDiv" style="display: none">
+            REQUESTS CLOSED // $<span id="closedDonations">??</span>
+        </div>
+
+        <div id="customDiv" style="display: block">
+            <span id="customMessage">Loading...</span>
+        </div>
+    </div>
+
+    <div class="settings">
+    <h2>Quick Actions</h2>
+    <div class="setting">
+        <div class="setting-item">
+            <label for="settingsSelectMode">Select Mode</label>
+            <span class="settingValue">
+                <select id='settingsSelectMode' class='edit' onChange='onModeChange()'>
+                    <option value="donations">Requests Open</option>
+                    <option value="closed">Requests Closed</option>
+                    <option value="custom">Custom Message</option>
+                </select>
+            </span>
+        </div>
+    </div>
+
+    <div class="setting extend">
+        <div class="setting-item">
+            <label for="buttonQuickExtendStream">STAY ON FOR <span id="settingsQuickExtendHours">??</span> HOURS / $<span id="settingsQuickExtendAmount">??</span></label>
+            <span class="settingValue">
+                <button id="buttonQuickExtendStream" onClick="onQuickExtendStream()">Extend</button>
+            </span>
+        </div>
+    </div>
+
+    <h2>Config</h2>
+    <h3>When requests open...</h3>
+    <div class="setting">
+        <div class="setting-item">
+            <label for="buttonExtendStream">Stay on for <select id="settingsExtendStream"></select> hours</label>
+            <span class="settingValue">
+                <button id="buttonExtendStream" onClick="onSetTime()">Update Time</button>
+            </span>
+        </div>
+
+        <div class="setting-item">
+            <label for="settingsAmount">Donations Goal $<select id="settingsAmountSelect" onChange="onSettingsAmountSelectChange()"></select></label>
+            <span class="settingValue">
+                <button id="buttonSetAmount" onClick="onSetAmount()">Update Goal $</button>
+            </span>
+            <div id="settingsAmountContainer" class="sub" style="display: none">
+                <label for="settingsAmount">Custom Value $</label>
+                <input id="settingsAmount" style="width: 4em;"></input>
+            </div>
+        </div>
+
+        <div class="setting-item danger">
+            <label for="settingsReset">Reset to <span id="settingsDefaultHours">??</span> hours / $<span id="settingsDefaultAmount"></span></label>
+            <span class="settingValue">
+                <button id="buttonResetStream" onClick="onResetStream()">Reset</button>
+            </span>
+        </div>
+    </div>
+
+    <h3>When custom message...</h3>
+    <div class="setting">
+        <div class="setting-item">
+            <label for="settingsCustomMessage">Message</label>
+            <span class="settingValue">
+               <input id="settingsCustomMessage" class='edit' onChange='onCustomMessageChange()'></input>
+            </span>
+        </div>
+    </div>
+
+    <h3>Setup</h3>
+    <div class="setting">
+        <div class="setting-item">
+            <label for="settingsShowProgress">Show goal progress</label>
+            <span class="settingValue">
+                <input id="settingsShowProgress" class="edit" type="checkbox" onChange="onProgressChange()">
+            </span>
+        </div>
+    </div>
+
+    <div class="setting">
+        <div class="setting-item">
+            <label for="settingsShowGoalAlerts">Show goal alerts</label>
+            <span class="settingValue">
+                <input id="settingsShowGoalAlerts" class="edit" type="checkbox" onChange="onGoalAlertsChange()">
+            </span>
+
+            <div class="sub">
+                <label for="settingsGoalMessage">Time Extended Message</label>
+                <span class="settingValue">
+                   <input id="settingsGoalMessage" class='edit' onChange='onGoalMessageChange()'></input>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="setting">
+        <div class="setting-item">
+            <label for="settingsIncrementBy">Stream Length Increment</label>
+            <span class="settingValue">
+                <span id="settingsIncrementBy">??</span> hours<!-- <button id="doIncrementBy" value="??">Add</button> -->
+            </span>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

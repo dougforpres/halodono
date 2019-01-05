@@ -1,0 +1,50 @@
+<!doctype html>
+<head>
+<title>Halocene Donation Info</title>
+<link href="https://fonts.googleapis.com/css?family=Oswald" rel="stylesheet">
+<link href="/static/donations.css" rel="stylesheet">
+<script src="/static/renderDonations.js"></script>
+
+<style>
+body {
+    color: #ddd;
+    background-color: #000;
+    font-size: 1em;
+    font-family: Oswald, Impact;
+    height: 20em;
+}
+</style>
+<script>
+    function checkDonations() {
+        fetch('/api/status')
+            .then(response => response.json())
+            .then(status => {
+                updateDonationsDisplay(status);
+                updateGoalDisplay(status);
+            })
+    }
+
+    setInterval(checkDonations, 2500);
+</script>
+</head>
+<body>
+<div class="flex-container">
+    <div class="goal-container">
+        <div id="goalText" class="glitchy" style="display: none" data-text="GOAL!!">GOAL!!</div>
+    </div>
+    <div>
+        <div id="donationDiv" style="display: none">
+            STAY ON FOR <span id="hours">??</span> HOURS: $<span id="donations">??</span> / $<span id="goal">??</span>
+            <div align="left" id="donationProgress"><div id="donationProgressBar"></div></div>
+        </div>
+
+        <div id="closedDiv" style="display: none">
+            REQUESTS CLOSED // $<span id="closedDonations">??</span>
+        </div>
+
+        <div id="customDiv" style="display: none">
+            <span id="customMessage"></span>
+        </div>
+    </div>
+<div>
+</body>
